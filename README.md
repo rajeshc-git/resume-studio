@@ -56,7 +56,7 @@ Copy code
 
 ### 1️⃣ Clone the Repository
 ```bash
-git clone https://github.com/your-username/ResumeArchitect-Studio.git
+git clone https://github.com/rajeshc-git/resume-studio/
 2️⃣ Open in Browser
 bash
 Copy code
