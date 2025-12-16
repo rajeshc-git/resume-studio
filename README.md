@@ -73,19 +73,6 @@ Preview changes instantly
 
 Print or export your resume
 
-📸 Screenshots
-Add screenshots here
-
-md
-Copy code
-![Home](assets/images/screenshot1.png)
-![Editor](assets/images/screenshot2.png)
-🧩 Future Enhancements
-🔹 Multiple resume templates
-🔹 PDF export
-🔹 Drag & drop sections
-🔹 Dark mode
-🔹 AI-assisted resume suggestions
 
 🤝 Contributing
 Contributions are welcome!
