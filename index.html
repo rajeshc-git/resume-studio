@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResumeArchitect Studio | Professional Builder</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@400;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        studio: { 800: '#1e1e2e', 900: '#11111b', accent: '#89b4fa', surface: '#313244' }
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* APP UI */
+        body { background-color: #11111b; color: #cdd6f4; overflow: hidden; }
+        .glass-panel { background: rgba(30, 30, 46, 0.8); backdrop-filter: blur(12px); border-right: 1px solid rgba(255,255,255,0.05); }
+        
+        /* SCROLLBARS */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #11111b; }
+        ::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #585b70; }
+
+        /* DRAG & DROP UI */
+        .sortable-ghost { opacity: 0.4; background: #313244; border: 1px dashed #89b4fa; }
+        .drag-handle { cursor: grab; }
+        .drag-handle:active { cursor: grabbing; }
+
+        /* A4 PAPER PREVIEW */
+        .paper-viewport {
+            background-image: radial-gradient(#313244 1px, transparent 1px);
+            background-size: 20px 20px;
+            perspective: 1000px;
+        }
+        .a4-page {
+            width: 210mm; min-height: 297mm;
+            background: white; color: #1e1e2e;
+            box-shadow: 0 0 50px -10px rgba(0,0,0,0.5);
+            transform-origin: top center;
+            margin: auto;
+        }
+
+        /* PRINT MEDIA QUERY (Crucial for PDF Export) */
+        @media print {
+            body * { visibility: hidden; }
+            #preview-container, #preview-container * { visibility: visible; }
+            #preview-container {
+                position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0;
+                transform: scale(1) !important; box-shadow: none;
+            }
+            .a4-page { margin: 0; box-shadow: none; width: 100%; height: auto; min-height: auto; }
+            @page { margin: 0; size: auto; }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col font-sans">
+
+    <nav class="h-16 bg-studio-900 border-b border-white/5 flex items-center justify-between px-6 shrink-0 z-50">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-900/20">
+                <i class="fa-solid fa-cube text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight text-white">ResumeArchitect <span class="text-studio-accent font-light">Studio</span></h1>
+                <div class="text-[10px] text-gray-500 font-mono tracking-wider">BUILD v4.2 • CLIENT SIDE</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="app.resetData()" class="px-4 py-2 text-xs font-semibold text-gray-400 hover:text-white transition">
+                <i class="fa-solid fa-rotate-right mr-2"></i>Reset
+            </button>
+            <div class="h-6 w-px bg-white/10"></div>
+            <button id="download-btn" onclick="app.downloadPDF()" class="group relative px-5 py-2.5 bg-studio-accent text-studio-900 text-sm font-bold rounded-lg hover:bg-white transition-all shadow-[0_0_20px_rgba(137,180,250,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.4)]">
+                <i class="fa-solid fa-download mr-2 group-hover:-translate-y-0.5 transition-transform"></i>Download PDF
+            </button>
+        </div>
+    </nav>
+
+    <div class="flex-grow flex overflow-hidden">
+        
+        <aside class="w-[450px] flex flex-col glass-panel z-20 shadow-2xl relative">
+            
+            <div class="flex border-b border-white/5 bg-studio-900/50">
+                <button onclick="ui.setTab('import')" id="tab-import" class="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-studio-accent border-b-2 border-studio-accent bg-white/5 transition-all">Import</button>
+                <button onclick="ui.setTab('content')" id="tab-content" class="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-gray-500 border-b-2 border-transparent hover:text-gray-300 transition-all">Content</button>
+                <button onclick="ui.setTab('design')" id="tab-design" class="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-gray-500 border-b-2 border-transparent hover:text-gray-300 transition-all">Design</button>
+            </div>
+
+            <div id="view-import" class="flex-grow p-8 flex flex-col items-center justify-center relative">
+                <div class="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
+                
+                <div id="drop-zone" class="w-full h-64 border-2 border-dashed border-gray-600 rounded-2xl bg-studio-surface/50 flex flex-col items-center justify-center cursor-pointer hover:border-studio-accent hover:bg-studio-surface transition-all group relative overflow-hidden">
+                    <div class="absolute inset-0 bg-studio-accent/5 scale-0 group-hover:scale-100 transition-transform rounded-2xl"></div>
+                    <i class="fa-solid fa-file-import text-4xl text-gray-500 group-hover:text-studio-accent mb-4 transition-colors z-10"></i>
+                    <h3 class="text-lg font-bold text-white z-10">Upload LinkedIn Profile</h3>
+                    <p class="text-xs text-gray-400 mt-2 z-10">PDF Format Only</p>
+                    <input type="file" id="file-input" class="hidden" accept=".pdf">
+                </div>
+                
+                <div id="import-log" class="mt-6 w-full font-mono text-[10px] text-studio-accent opacity-0 transition-opacity">
+                    <i class="fa-solid fa-terminal mr-2"></i><span id="log-text">Waiting for input...</span>
+                </div>
+            </div>
+
+            <div id="view-content" class="flex-grow overflow-y-auto hidden custom-scrollbar pb-24">
+                
+                <div class="p-6 border-b border-white/5 bg-studio-surface/30">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-white uppercase tracking-wider"><i class="fa-solid fa-id-card mr-2 text-studio-accent"></i>Header Details</h3>
+                    </div>
+                    <div class="space-y-3">
+                        <input type="text" id="inp-name" class="w-full bg-studio-900 border border-gray-700 rounded-lg px-4 py-3 text-sm font-bold text-white focus:border-studio-accent focus:ring-1 focus:ring-studio-accent outline-none transition" placeholder="Full Name">
+                        <textarea id="inp-contact" rows="2" class="w-full bg-studio-900 border border-gray-700 rounded-lg px-4 py-3 text-xs text-gray-300 focus:border-studio-accent outline-none transition" placeholder="Email | Phone | LinkedIn"></textarea>
+                    </div>
+                </div>
+
+                <div id="sections-editor" class="p-4 space-y-4">
+                    </div>
+
+                <div class="absolute bottom-0 left-0 w-full p-4 bg-studio-900/90 backdrop-blur border-t border-white/10">
+                    <button onclick="app.addSection()" class="w-full py-3 rounded-lg bg-studio-surface hover:bg-gray-700 border border-gray-600 text-xs font-bold text-white transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Add New Section
+                    </button>
+                </div>
+            </div>
+
+            <div id="view-design" class="flex-grow p-6 hidden overflow-y-auto">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Visual Theme</h3>
+
+                <div id="theme-list" class="grid grid-cols-2 gap-3 mb-8"></div>
+
+                <div class="space-y-6">
+                    <div>
+                        <div class="flex justify-between text-xs text-gray-400 mb-2">
+                            <span>Content Density</span>
+                            <span class="text-white" id="lbl-gap">Normal</span>
+                        </div>
+                        <input id="range-gap" type="range" min="1" max="10" value="5" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer" oninput="app.updateDesign('gap', this.value)">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs text-gray-400 mb-2">
+                            <span>Font Size</span>
+                            <span class="text-white" id="lbl-font">10.5pt</span>
+                        </div>
+                        <input id="range-font" type="range" min="9" max="12" step="0.5" value="10.5" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer" oninput="app.updateDesign('fontSize', this.value)">
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-grow bg-studio-800 paper-viewport relative overflow-y-auto overflow-x-hidden flex justify-center py-12 custom-scrollbar">
+            
+            <div id="preview-container" class="transition-transform duration-300 origin-top">
+                <div id="resume-paper" class="a4-page p-[20mm] relative">
+                    
+                    <div id="paper-header" class="text-center border-b-2 border-gray-800 pb-6 mb-6">
+                        <h1 id="out-name" class="text-4xl font-bold uppercase tracking-tight text-gray-900 mb-2">Your Name</h1>
+                        <div id="out-contact" class="text-sm text-gray-600 font-medium"></div>
+                    </div>
+
+                    <div id="paper-body" class="space-y-6">
+                        </div>
+
+                </div>
+                </div>
+
+            <div class="fixed bottom-8 right-8 flex flex-col gap-2 z-50">
+                <button onclick="ui.zoom(0.1)" class="w-10 h-10 bg-studio-surface hover:bg-studio-accent hover:text-studio-900 text-white rounded-full shadow-lg border border-white/10 flex items-center justify-center transition-all">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                <div class="bg-black/50 backdrop-blur text-white text-[10px] py-1 px-2 rounded-full text-center border border-white/10" id="zoom-lbl">100%</div>
+                <button onclick="ui.zoom(-0.1)" class="w-10 h-10 bg-studio-surface hover:bg-studio-accent hover:text-studio-900 text-white rounded-full shadow-lg border border-white/10 flex items-center justify-center transition-all">
+                    <i class="fa-solid fa-minus"></i>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- 1. STATE STORE (The Brain) ---
+        const store = {
+            profile: { name: "", contact: "" },
+            sections: [], // Array of section objects
+            design: {
+                theme: 'modern', // modern, classic
+                gapScale: 5,
+                fontSize: 10.5,
+                zoom: 1.0,
+                accent: '#2563eb'
+            }
+        };
+
+        // --- 2. PARSING ENGINE (PDF to JSON) ---
+        const Parser = {
+            async load(file) {
+                ui.log("Reading PDF file...", true);
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                
+                try {
+                    const buf = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument(buf).promise;
+                    let txt = "";
+                    const metaLines = [];
+                    
+                    for(let i=1; i<=pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
+                        const extracted = this.extractLinesWithMeta(content.items);
+                        extracted.forEach(l => metaLines.push(l));
+                        txt += extracted.map(l => l.text).join("\n") + "\n\n";
+                    }
+                    this.process(txt, metaLines);
+                } catch(e) {
+                    alert("Error parsing PDF. Make sure it's text-based.");
+                    ui.log("Error.", false);
+                }
+            },
+
+            extractLinesWithMeta(items) {
+                const cleaned = (items || [])
+                    .map(it => {
+                        const str = (it.str || '').replace(/\s+/g, ' ').trim();
+                        const t = it.transform || [1,0,0,1,0,0];
+                        const x = t[4] || 0;
+                        const y = t[5] || 0;
+                        // Rough font size estimate from transform scale.
+                        const fontSize = Math.max(0, Math.abs(t[0] || 0), Math.abs(t[3] || 0));
+                        return { str, x, y, fontSize };
+                    })
+                    .filter(it => it.str.length > 0);
+
+                // Sort top-to-bottom, left-to-right
+                cleaned.sort((a, b) => (b.y - a.y) || (a.x - b.x));
+
+                const lines = [];
+                const yTol = 2.5;
+                for (const it of cleaned) {
+                    const last = lines[lines.length - 1];
+                    if (!last || Math.abs(it.y - last.y) > yTol) {
+                        lines.push({ y: it.y, fontSizeMax: it.fontSize, parts: [{ x: it.x, str: it.str }] });
+                    } else {
+                        last.parts.push({ x: it.x, str: it.str });
+                        last.fontSizeMax = Math.max(last.fontSizeMax, it.fontSize);
+                    }
+                }
+
+                return lines
+                    .map(line => {
+                        line.parts.sort((a, b) => a.x - b.x);
+                        const text = line.parts.map(p => p.str).join(' ').replace(/\s+/g, ' ').trim();
+                        return { text, y: line.y, fontSizeMax: line.fontSizeMax };
+                    })
+                    .filter(l => l.text.length > 0);
+            },
+
+            process(text, metaLines = null) {
+                ui.log("Analyzing structure...", true);
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+                // Name Detection (LinkedIn-friendly Heuristic; uses font-size when available)
+                const normalizeSpaces = (s) => s.replace(/\s+/g, ' ').trim();
+                const toTitleCase = (s) => normalizeSpaces(s.toLowerCase()).replace(/\b([a-z])/g, m => m.toUpperCase());
+                const hasLetters = (s) => /[A-Za-z]/.test(s);
+                const looksLikeUrlOrHandle = (s) => /https?:\/\//i.test(s) || /\bwww\./i.test(s) || /linkedin\.com\b/i.test(s) || /github\.com\b/i.test(s);
+                const looksLikeContact = (s) => s.includes('@') || /\+?\d[\d ()-]{7,}\d/.test(s) || looksLikeUrlOrHandle(s);
+                const isLikelyNameShape = (s) => {
+                    const cleaned = normalizeSpaces(s.replace(/[•|]/g, ' '));
+                    if (cleaned.length < 3 || cleaned.length > 60) return false;
+                    if (!hasLetters(cleaned)) return false;
+                    if (/\d/.test(cleaned)) return false;
+                    if (looksLikeContact(cleaned)) return false;
+                    if (/[,:;\/\\]/.test(cleaned)) return false;
+                    const words = cleaned.split(' ').filter(Boolean);
+                    if (words.length < 2 || words.length > 5) return false;
+                    // Allow initials, hyphens, apostrophes
+                    return /^[A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){1,4}$/.test(cleaned);
+                };
+
+                let bestName = "";
+                let bestScore = -1e9;
+                const blacklist = [
+                    'resume', 'curriculum', 'vitae', 'cv', 'profile', 'linkedin',
+                    'page', 'experience', 'education', 'skills', 'summary', 'contact'
+                ];
+
+                const nameCandidates = (Array.isArray(metaLines) && metaLines.length > 0)
+                    ? metaLines.slice(0, 80).map(l => ({ line: l.text, fontSize: l.fontSizeMax || 0 }))
+                    : lines.slice(0, 40).map(l => ({ line: l, fontSize: 0 }));
+
+                nameCandidates.forEach(({ line: rawLine, fontSize }, index) => {
+                    const line = normalizeSpaces(rawLine);
+                    if (!isLikelyNameShape(line)) return;
+                    const low = line.toLowerCase();
+                    let score = 0;
+
+                    // Prefer earlier lines
+                    score += (40 - index) * 2;
+
+                    // Prefer larger font size (common in LinkedIn PDF header)
+                    score += fontSize * 25;
+
+                    // Prefer 2-3 word names
+                    const words = line.split(' ').filter(Boolean);
+                    if (words.length === 2) score += 40;
+                    else if (words.length === 3) score += 30;
+                    else score += 10;
+
+                    // Penalize suspicious keywords
+                    blacklist.forEach(k => { if (low.includes(k)) score -= 80; });
+
+                    // Slight preference for proper case over all-caps
+                    const isAllCaps = line === line.toUpperCase();
+                    const hasLower = /[a-z]/.test(line);
+                    if (isAllCaps) score -= 10;
+                    if (hasLower) score += 10;
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestName = line;
+                    }
+                });
+
+                if (bestName) {
+                    store.profile.name = (bestName === bestName.toUpperCase()) ? toTitleCase(bestName) : bestName;
+                }
+
+                // Contact Detection
+                const emails = text.match(/[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-z]+/g) || [];
+                const phones = text.match(/(\+?\d[\d -]{8,}\d)/g) || [];
+                const links = text.match(/linkedin\.com\/in\/[a-zA-Z0-9-]+/g) || [];
+                store.profile.contact = [...new Set([...emails, ...phones, ...links])].join(" | ");
+
+                // Section Parsing
+                // Mapping keywords to Section Types: 'list' (skills), 'grouped' (jobs), 'text' (summary)
+                const keywords = {
+                    'experience': 'grouped', 'employment': 'grouped', 'education': 'grouped', 'projects': 'grouped',
+                    'skills': 'list', 'languages': 'list', 'certifications': 'list',
+                    'summary': 'text', 'profile': 'text', 'about': 'text'
+                };
+
+                // LinkedIn export headings seen in the wild
+                const keywordAliases = {
+                    'top skills': 'list',
+                    'honors & awards': 'grouped',
+                    'honours & awards': 'grouped',
+                    'publications': 'grouped',
+                    'volunteer experience': 'grouped',
+                    'volunteering': 'grouped',
+                    'accomplishments': 'grouped',
+                    'courses': 'grouped'
+                };
+
+                const isHeadingLine = (line) => {
+                    const low = line.toLowerCase().trim();
+                    if (low.length > 70) return null;
+                    // exact or common variants
+                    if (keywords[low]) return keywords[low];
+                    if (keywordAliases[low]) return keywordAliases[low];
+                    // patterns like "Top Skills" or "Professional Experience"
+                    for (const k in keywords) {
+                        if (low === `top ${k}` || low === `professional ${k}` || low.endsWith(` ${k}`)) return keywords[k];
+                    }
+                    return null;
+                };
+
+                let newSecs = [];
+                let cur = null;
+                let buf = [];
+
+                const commit = () => {
+                    if(!cur) return;
+                    if(cur.type === 'text') cur.content = buf.join(" ");
+                    else if(cur.type === 'list') {
+                        const rawItems = buf.join("\n").split(/,|•|\n/).map(s=>s.trim()).filter(s=>s.length > 0);
+                        const cleaned = rawItems
+                            .map(s => s
+                                .replace(/\s+\d+\s+endorsement(s)?$/i, '')
+                                .replace(/\s+\d+$/i, '')
+                                .trim()
+                            )
+                            .filter(s => s.length > 1);
+                        cur.items = [...new Set(cleaned)];
+                    } else {
+                        // LinkedIn-friendly grouping: try to split multiple roles/entries.
+                        cur.items = this.splitGroupedItems(buf);
+                    }
+                };
+
+                lines.forEach(line => {
+                    const matched = isHeadingLine(line);
+                    if(matched) {
+                        commit();
+                        buf = [];
+                        cur = { id: Date.now() + Math.random(), title: line, type: matched, content: "", items: [] };
+                        newSecs.push(cur);
+                    } else if(cur) {
+                        buf.push(line);
+                    }
+                });
+                commit();
+
+                store.sections = newSecs.length > 0 ? newSecs : [{id:1, title:'Summary', type:'text', content:text.substring(0, 500)}];
+                
+                ui.render();
+                ui.setTab('content');
+                ui.log("Import Complete.", true);
+            }
+            ,
+
+            splitGroupedItems(lines) {
+                const normalizeSpaces = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+                const cleaned = (lines || []).map(normalizeSpaces).filter(Boolean);
+                if (cleaned.length === 0) return [];
+
+                const isBulletLine = (s) => /^([•\-*–—]|\u2022)\s+/.test(s);
+                const isDateLike = (s) => /(\b(19|20)\d{2}\b|present|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b/i.test(s);
+                const isStart = (s) => {
+                    if (s.length < 3 || s.length > 80) return false;
+                    if (isBulletLine(s)) return false;
+                    if (/\d/.test(s)) return false;
+                    if (/@/.test(s) || /linkedin\.com/i.test(s)) return false;
+                    if (/(experience|education|skills|summary|projects|certifications|languages)\b/i.test(s)) return false;
+                    // Title-case-ish line
+                    return /^[A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,7}$/.test(s);
+                };
+
+                const chunks = [];
+                let current = [];
+                for (let i = 0; i < cleaned.length; i++) {
+                    const line = cleaned[i];
+                    if (current.length > 0 && isStart(line) && !isDateLike(line)) {
+                        chunks.push(current);
+                        current = [line];
+                    } else {
+                        current.push(line);
+                    }
+                }
+                if (current.length > 0) chunks.push(current);
+
+                const items = chunks.map(chunk => {
+                    const title = chunk[0] || 'Title';
+                    // Pick up to two short non-bullet lines as subtitle (company/date/location)
+                    const rest = chunk.slice(1);
+                    const subLines = [];
+                    const bodyLines = [];
+                    for (const l of rest) {
+                        if (subLines.length < 2 && !isBulletLine(l) && l.length <= 80 && (isDateLike(l) || /\b(full-time|part-time|internship|contract|remote|hybrid)\b/i.test(l) || !/\n/.test(l))) {
+                            subLines.push(l);
+                        } else {
+                            bodyLines.push(l);
+                        }
+                    }
+                    const sub = subLines.join(' • ');
+                    const body = bodyLines.join('\n');
+                    return { title, sub, body };
+                }).filter(it => (it.title || it.sub || it.body));
+
+                // If heuristic produced one huge item with no body, fallback to legacy layout.
+                if (items.length === 1 && items[0].sub === '' && items[0].body === '') {
+                    return [{
+                        title: cleaned[0] || 'Title',
+                        sub: cleaned[1] || 'Subtitle',
+                        body: cleaned.slice(2).join('\n')
+                    }];
+                }
+                return items;
+            }
+        };
+
+        // --- 3. UI RENDERER (DOM Manipulation) ---
+        const ui = {
+            // ATS-friendly theme presets (monochrome-friendly)
+            themes: {
+                modern:      { label: 'Modern',      desc: 'Clean ATS sans',          headingFont: 'Inter, sans-serif',           bodyFont: 'Inter, sans-serif',           gap: 5,  fontSize: 10.5, badge: 'bg-blue-500' },
+                classic:     { label: 'Classic',     desc: 'Serif headings',          headingFont: 'Playfair Display, serif',     bodyFont: 'Lato, sans-serif',             gap: 6,  fontSize: 11,   badge: 'bg-slate-200' },
+                minimalist:  { label: 'Minimalist',  desc: 'Light, ATS-safe',         headingFont: 'Inter, sans-serif',           bodyFont: 'Inter, sans-serif',           gap: 6,  fontSize: 10,   badge: 'bg-gray-300' },
+                condensed:   { label: 'Condensed',   desc: 'Tight layout',            headingFont: 'Inter, sans-serif',           bodyFont: 'Inter, sans-serif',           gap: 3,  fontSize: 10,   badge: 'bg-gray-500' },
+                spacious:    { label: 'Spacious',    desc: 'Airy readability',        headingFont: 'Inter, sans-serif',           bodyFont: 'Lato, sans-serif',             gap: 8,  fontSize: 11,   badge: 'bg-emerald-300' },
+                corporate:   { label: 'Corporate',   desc: 'Neutral business',        headingFont: 'Inter, sans-serif',           bodyFont: 'Lato, sans-serif',             gap: 5,  fontSize: 10.5, badge: 'bg-blue-300' },
+                consulting:  { label: 'Consulting',  desc: 'Precise & crisp',         headingFont: 'Playfair Display, serif',     bodyFont: 'Inter, sans-serif',            gap: 5,  fontSize: 10.5, badge: 'bg-amber-300' },
+                tech:        { label: 'Tech',        desc: 'Compact, ATS clean',      headingFont: 'Inter, sans-serif',           bodyFont: 'Inter, sans-serif',           gap: 4,  fontSize: 10,   badge: 'bg-cyan-300' },
+                product:     { label: 'Product',     desc: 'Balanced layout',         headingFont: 'Inter, sans-serif',           bodyFont: 'Lato, sans-serif',             gap: 5,  fontSize: 10.5, badge: 'bg-pink-300' },
+                data:        { label: 'Data',        desc: 'Dense & aligned',         headingFont: 'Inter, sans-serif',           bodyFont: 'Inter, sans-serif',           gap: 4,  fontSize: 10.5, badge: 'bg-indigo-300' },
+                academic:    { label: 'Academic',    desc: 'Long-form friendly',      headingFont: 'Merriweather, serif',         bodyFont: 'Lato, sans-serif',             gap: 7,  fontSize: 11,   badge: 'bg-purple-300' },
+                legal:       { label: 'Legal',       desc: 'Orderly serif',           headingFont: 'Merriweather, serif',         bodyFont: 'Lato, sans-serif',             gap: 7,  fontSize: 11,   badge: 'bg-gray-200' }
+            },
+            setTab(t) {
+                ['import', 'content', 'design'].forEach(k => {
+                    document.getElementById(`view-${k}`).classList.add('hidden');
+                    const btn = document.getElementById(`tab-${k}`);
+                    btn.classList.remove('text-studio-accent', 'border-studio-accent', 'bg-white/5');
+                    btn.classList.add('border-transparent');
+                });
+                document.getElementById(`view-${t}`).classList.remove('hidden');
+                const active = document.getElementById(`tab-${t}`);
+                active.classList.add('text-studio-accent', 'border-studio-accent', 'bg-white/5');
+                active.classList.remove('border-transparent');
+            },
+
+            log(msg, show) {
+                const el = document.getElementById('import-log');
+                document.getElementById('log-text').innerText = msg;
+                el.style.opacity = show ? '1' : '0';
+            },
+
+            render() {
+                this.renderEditor();
+                this.renderPreview();
+            },
+
+            renderThemeGrid() {
+                const container = document.getElementById('theme-list');
+                if(!container) return;
+                container.innerHTML = '';
+                Object.entries(this.themes).forEach(([key, t]) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'p-4 rounded-xl bg-studio-surface border border-gray-600 hover:border-studio-accent text-left transition group';
+                    btn.innerHTML = `
+                        <div class="w-8 h-8 rounded-full ${t.badge} mb-2 group-hover:scale-110 transition-transform"></div>
+                        <div class="text-sm font-bold text-white">${t.label}</div>
+                        <div class="text-[10px] text-gray-400">${t.desc}</div>
+                    `;
+                    btn.addEventListener('click', () => app.applyTheme(key));
+                    container.appendChild(btn);
+                });
+            },
+
+            // --- THE EDITOR (Drag & Drop Form) ---
+            renderEditor() {
+                // Profile
+                document.getElementById('inp-name').value = store.profile.name;
+                document.getElementById('inp-contact').value = store.profile.contact;
+
+                // Sections
+                const container = document.getElementById('sections-editor');
+                container.innerHTML = "";
+
+                store.sections.forEach((sec, idx) => {
+                    const el = document.createElement('div');
+                    el.className = "bg-studio-900 border border-gray-700 rounded-xl overflow-hidden transition-all hover:border-gray-500 group";
+                    el.innerHTML = `
+                        <div class="bg-white/5 p-3 flex justify-between items-center cursor-move sec-handle border-b border-white/5">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-grip-vertical text-gray-600"></i>
+                                <input type="text" value="${sec.title}" class="bg-transparent text-xs font-bold text-white w-40 outline-none uppercase" oninput="app.updateSectionTitle(${idx}, this.value)">
+                            </div>
+                            <button onclick="app.deleteSection(${idx})" class="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition">
+                                <i class="fa-solid fa-trash text-xs"></i>
+                            </button>
+                        </div>
+                        <div class="p-4 bg-studio-surface/20">
+                            ${this.getEditorInputs(sec, idx)}
+                        </div>
+                    `;
+                    container.appendChild(el);
+                });
+
+                // Init Sortable for Sections
+                new Sortable(container, {
+                    handle: '.sec-handle', animation: 150,
+                    onEnd: (e) => {
+                        const item = store.sections.splice(e.oldIndex, 1)[0];
+                        store.sections.splice(e.newIndex, 0, item);
+                        this.renderPreview();
+                    }
+                });
+            },
+
+            getEditorInputs(sec, idx) {
+                if(sec.type === 'text') {
+                    return `<textarea class="w-full bg-studio-900 border border-gray-700 rounded-lg p-3 text-xs text-gray-300 outline-none focus:border-studio-accent" rows="4" oninput="app.updateSectionContent(${idx}, this.value)">${sec.content}</textarea>`;
+                } else if(sec.type === 'list') {
+                    return `<textarea class="w-full bg-studio-900 border border-gray-700 rounded-lg p-3 text-xs text-gray-300 outline-none focus:border-studio-accent" rows="3" placeholder="Comma separated items..." oninput="app.updateSectionItems(${idx}, this.value)">${sec.items.join(", ")}</textarea>`;
+                } else {
+                    // Grouped (Jobs)
+                    let html = `<div id="group-list-${idx}" class="space-y-3">`;
+                    sec.items.forEach((item, i) => {
+                        html += `
+                            <div class="relative bg-studio-900 border border-gray-700/50 rounded-lg p-3 group-item">
+                                <div class="absolute right-2 top-2 flex gap-2">
+                                    <i class="fa-solid fa-grip-lines text-gray-600 cursor-move item-handle"></i>
+                                    <i class="fa-solid fa-xmark text-gray-600 cursor-pointer hover:text-red-400" onclick="app.deleteGroupItem(${idx}, ${i})"></i>
+                                </div>
+                                <input class="w-10/12 bg-transparent text-xs font-bold text-studio-accent mb-1 outline-none" value="${item.title}" placeholder="Role" oninput="app.updateGroupItem(${idx}, ${i}, 'title', this.value)">
+                                <input class="w-10/12 bg-transparent text-[10px] text-gray-500 mb-2 outline-none" value="${item.sub}" placeholder="Company | Date" oninput="app.updateGroupItem(${idx}, ${i}, 'sub', this.value)">
+                                <textarea class="w-full bg-transparent text-[11px] text-gray-400 outline-none resize-none border-t border-white/5 pt-2" rows="2" oninput="app.updateGroupItem(${idx}, ${i}, 'body', this.value)">${item.body}</textarea>
+                            </div>
+                        `;
+                    });
+                    html += `</div><button onclick="app.addGroupItem(${idx})" class="mt-3 text-[10px] font-bold text-studio-accent hover:text-white">+ Add Item</button>`;
+                    
+                    // Allow nested sorting (items within sections) requires a slight delay to attach
+                    setTimeout(() => {
+                        const list = document.getElementById(`group-list-${idx}`);
+                        if(list) new Sortable(list, { handle: '.item-handle', animation: 150, onEnd: (e) => {
+                             const moved = store.sections[idx].items.splice(e.oldIndex, 1)[0];
+                             store.sections[idx].items.splice(e.newIndex, 0, moved);
+                             ui.renderPreview();
+                        }});
+                    }, 100);
+                    
+                    return html;
+                }
+            },
+
+            // --- THE PREVIEW (A4 Render) ---
+            renderPreview() {
+                const paper = document.getElementById('resume-paper');
+                const body = document.getElementById('paper-body');
+                
+                // Design Variables
+                const activeTheme = this.themes[store.design.theme] || this.themes.modern;
+                const themeFont = activeTheme.headingFont;
+                const bodyFont = activeTheme.bodyFont;
+                paper.style.fontFamily = bodyFont;
+                // Print-friendly ink mode: keep resume output monochrome.
+                const ink = '#000000';
+                const inkSoft = '#111111';
+                
+                // Header
+                const h1 = document.getElementById('out-name');
+                h1.style.fontFamily = themeFont;
+                h1.textContent = store.profile.name || "Your Name";
+                h1.style.color = ink;
+                document.getElementById('out-contact').innerHTML = this.formatContactHTML(store.profile.contact);
+                
+                // Content
+                body.innerHTML = store.sections.map(sec => {
+                    const mb = store.design.gapScale * 0.2 + "rem"; // Dynamic gap
+                    const titleStyle = `font-family:${themeFont}; color:${ink}; border-bottom:1px solid #000000; margin-bottom:0.5rem; padding-bottom:0.25rem; font-weight:bold; text-transform:uppercase; font-size:0.85rem; letter-spacing:0.05em;`;
+                    
+                    let inner = "";
+                    if(sec.type === 'text') {
+                        inner = this.renderAutoText(sec.content);
+                    } else if(sec.type === 'list') {
+                        inner = this.renderBulletList(sec.items);
+                    } else {
+                        // Grouped sections (Experience, Education, etc.) with divider between entries
+                        const entryGap = Math.max(0.4, store.design.gapScale * 0.12); // gap between entries
+                        inner = sec.items.map((it, idx) => {
+                            const title = this.escapeHTML(it.title || '');
+                            const sub = this.escapeHTML(it.sub || '');
+                            const isLast = idx === sec.items.length - 1;
+                            const divider = (!isLast && sec.items.length > 1)
+                                ? `<div style="border-top:1px dashed #cccccc; margin-top:${entryGap}rem; margin-bottom:${entryGap * 0.6}rem;"></div>`
+                                : '';
+                            return `
+                                <div style="margin-bottom:${isLast ? 0 : entryGap * 0.3}rem;">
+                                    <div class="flex justify-between items-baseline">
+                                        <span style="color:${inkSoft}" class="font-bold text-sm">${title}</span>
+                                        <span style="color:${inkSoft}" class="text-xs font-medium">${sub}</span>
+                                    </div>
+                                    <div class="mt-1">${this.renderAutoText(it.body || '', { fontSizeClass: 'text-xs' })}</div>
+                                </div>
+                                ${divider}
+                            `;
+                        }).join('');
+                    }
+
+                    return `<div style="margin-bottom:${mb}">
+                        <h3 style="${titleStyle}">${sec.title}</h3>
+                        ${inner}
+                    </div>`;
+                }).join('');
+
+                // Apply Font Size
+                body.style.fontSize = store.design.fontSize + "pt";
+                body.style.color = ink;
+            },
+
+            escapeHTML(str) {
+                return String(str ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            },
+
+            renderAutoText(text, opts = {}) {
+                const fontSizeClass = opts.fontSizeClass || 'text-sm';
+                const raw = String(text ?? '').replace(/\r\n/g, '\n');
+                const cleaned = raw.trim();
+                if (!cleaned) return '';
+
+                const paragraphs = cleaned
+                    .split(/\n\s*\n+/g)
+                    .map(p => p.trim())
+                    .filter(Boolean);
+
+                const paraGap = Math.max(0.2, store.design.gapScale * 0.06); // rem-ish
+                return paragraphs.map(p => {
+                    const lines = p.split(/\n+/).map(l => l.trim()).filter(Boolean);
+                    const bulletLines = lines.filter(l => /^([•\-*–—]|\u2022)\s+/.test(l));
+                    const looksLikeBullets = bulletLines.length >= 2 && bulletLines.length / Math.max(1, lines.length) >= 0.6;
+
+                    if (looksLikeBullets) {
+                        const items = lines
+                            .map(l => l.replace(/^([•\-*–—]|\u2022)\s+/, '').trim())
+                            .filter(Boolean);
+                        return `
+                            <ul style="margin-bottom:${paraGap}rem" class="list-disc pl-5 ${fontSizeClass} leading-relaxed">
+                                ${items.map(it => `<li>${this.escapeHTML(it)}</li>`).join('')}
+                            </ul>
+                        `;
+                    }
+
+                    // Not bullets: keep manual line breaks, but with paragraph spacing
+                    const safe = this.escapeHTML(p).replace(/\n/g, '<br>');
+                    return `<p style="margin-bottom:${paraGap}rem" class="${fontSizeClass} leading-relaxed">${safe}</p>`;
+                }).join('');
+            },
+
+            renderBulletList(items) {
+                const list = Array.isArray(items) ? items : [];
+                const cleaned = list.map(i => String(i ?? '').trim()).filter(Boolean);
+                if (cleaned.length === 0) return '';
+                return `
+                    <ul class="list-disc pl-5 text-sm leading-relaxed">
+                        ${cleaned.map(i => `<li>${this.escapeHTML(i)}</li>`).join('')}
+                    </ul>
+                `;
+            },
+
+            formatContactHTML(contactStr) {
+                const raw = (contactStr || "").trim();
+                if (!raw) return "";
+
+                const emailRe = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+                const phoneRe = /\+?\d[\d ()-]{7,}\d/;
+                const tokens = raw.split('|').map(s => s.trim()).filter(Boolean);
+                const parts = tokens.map((token) => {
+                    const safeText = this.escapeHTML(token);
+                    if (emailRe.test(token)) {
+                        const email = token.match(emailRe)[0];
+                        return `<a class="text-black hover:underline" href="mailto:${email}">${safeText}</a>`;
+                    }
+                    if (phoneRe.test(token)) {
+                        const phone = token.match(phoneRe)[0];
+                        const tel = phone.replace(/[^\d+]/g, '');
+                        return `<a class="text-black hover:underline" href="tel:${tel}">${safeText}</a>`;
+                    }
+                    if (/linkedin\.com\//i.test(token)) {
+                        const href = token.startsWith('http') ? token : `https://${token}`;
+                        return `<a class="text-black hover:underline" href="${href}" target="_blank" rel="noopener noreferrer">${safeText}</a>`;
+                    }
+                    if (/^https?:\/\//i.test(token) || /^www\./i.test(token)) {
+                        const href = token.startsWith('http') ? token : `https://${token}`;
+                        return `<a class="text-black hover:underline" href="${href}" target="_blank" rel="noopener noreferrer">${safeText}</a>`;
+                    }
+                    return `<span class="text-black">${safeText}</span>`;
+                });
+
+                return parts.join('<span class="mx-2 opacity-50">•</span>');
+            },
+
+            zoom(delta) {
+                store.design.zoom = Math.max(0.5, Math.min(2.0, store.design.zoom + delta));
+                document.getElementById('preview-container').style.transform = `scale(${store.design.zoom})`;
+                document.getElementById('zoom-lbl').innerText = Math.round(store.design.zoom * 100) + "%";
+            }
+        };
+
+        // --- 4. CONTROLLER (User Actions) ---
+        const app = {
+            init() {
+                // Listeners
+                const z = document.getElementById('drop-zone');
+                const f = document.getElementById('file-input');
+                z.addEventListener('click', ()=>f.click());
+                z.addEventListener('dragover', e=>{e.preventDefault(); z.classList.add('border-studio-accent');});
+                z.addEventListener('dragleave', ()=>z.classList.remove('border-studio-accent'));
+                z.addEventListener('drop', e=>{e.preventDefault(); if(e.dataTransfer.files[0]) Parser.load(e.dataTransfer.files[0]);});
+                f.addEventListener('change', e=>{if(e.target.files[0]) Parser.load(e.target.files[0]);});
+
+                document.getElementById('inp-name').addEventListener('input', e => {store.profile.name = e.target.value; ui.renderPreview();});
+                document.getElementById('inp-contact').addEventListener('input', e => {store.profile.contact = e.target.value; ui.renderPreview();});
+
+                ui.renderThemeGrid();
+
+                // Default state
+                if(store.sections.length === 0) this.addDemoData();
+            },
+
+            updateSectionTitle(i, v) { store.sections[i].title = v; ui.renderPreview(); },
+            updateSectionContent(i, v) { store.sections[i].content = v; ui.renderPreview(); },
+            updateSectionItems(i, v) { store.sections[i].items = v.split(',').map(s=>s.trim()); ui.renderPreview(); },
+            updateGroupItem(sI, iI, k, v) { store.sections[sI].items[iI][k] = v; ui.renderPreview(); },
+            
+            addGroupItem(i) { store.sections[i].items.push({title:'New Role', sub:'Date', body:'Details'}); ui.renderEditor(); ui.renderPreview(); },
+            deleteGroupItem(sI, iI) { store.sections[sI].items.splice(iI, 1); ui.renderEditor(); ui.renderPreview(); },
+            
+            addSection() { store.sections.push({id:Date.now(), title:'New Section', type:'text', content:''}); ui.renderEditor(); ui.renderPreview(); },
+            deleteSection(i) { if(confirm('Delete section?')) { store.sections.splice(i,1); ui.renderEditor(); ui.renderPreview(); } },
+
+            // Design Actions
+            applyTheme(name) {
+                const theme = ui.themes?.[name] || ui.themes.modern;
+                store.design.theme = name;
+                store.design.gapScale = theme.gap;
+                store.design.fontSize = theme.fontSize;
+                const gapInput = document.getElementById('range-gap');
+                const fontInput = document.getElementById('range-font');
+                if(gapInput) gapInput.value = theme.gap;
+                if(fontInput) fontInput.value = theme.fontSize;
+                document.getElementById('lbl-gap').innerText = theme.gap;
+                document.getElementById('lbl-font').innerText = theme.fontSize + 'pt';
+                ui.renderPreview();
+            },
+            updateDesign(k, v) {
+                store.design[k==='gap'?'gapScale':'fontSize'] = v;
+                document.getElementById(k==='gap'?'lbl-gap':'lbl-font').innerText = v + (k==='gap'?'':'pt');
+                ui.renderPreview();
+            },
+
+            addDemoData() {
+                store.profile = { name: "Rajesh Choudhury", contact: "rajesh@example.com | Bengaluru, India" };
+                store.sections = [
+                    { title: "Professional Summary", type: "text", content: "Senior Software Engineer with expertise in full-stack development..." },
+                    { title: "Experience", type: "grouped", items: [{ title: "Senior Developer", sub: "Tech Corp | 2022 - Present", body: "Led team of 5 developers." }] },
+                    { title: "Skills", type: "list", items: ["JavaScript", "React", "Node.js", "Python", "SQL"] }
+                ];
+                ui.render();
+            },
+            
+            resetData() {
+                if(confirm("Reset all data?")) {
+                    store.sections = [];
+                    store.profile = {name:"", contact:""};
+                    this.addDemoData();
+                }
+            },
+
+            downloadPDF() {
+                const btn = document.getElementById('download-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Generating...';
+                btn.disabled = true;
+
+                const element = document.getElementById('resume-paper');
+                const fileName = (store.profile.name || 'Resume').replace(/[^a-zA-Z0-9 ]/g, '').trim() + '_Resume.pdf';
+
+                // Save current transform and reset for capture
+                const container = document.getElementById('preview-container');
+                const savedTransform = container.style.transform;
+                container.style.transform = 'scale(1)';
+
+                const opt = {
+                    margin: 0,
+                    filename: fileName,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { 
+                        scale: 2,
+                        useCORS: true,
+                        logging: false,
+                        letterRendering: true
+                    },
+                    jsPDF: { 
+                        unit: 'mm', 
+                        format: 'a4', 
+                        orientation: 'portrait' 
+                    }
+                };
+
+                html2pdf().set(opt).from(element).save().then(() => {
+                    container.style.transform = savedTransform;
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }).catch(err => {
+                    console.error('PDF generation error:', err);
+                    container.style.transform = savedTransform;
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    alert('Error generating PDF. Please try again.');
+                });
+            }
+        };
+
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>
